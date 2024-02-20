@@ -3,5 +3,5 @@
     "range_D":[0.5, 0.8],
     "range_AEdAO":[0.3, 1.05],
     "range_PdD":[0.5, 1.4],
-    "range_Z":[2, 7] 
+    "range_Z":[2, 7]
 }

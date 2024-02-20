@@ -1,5 +1,5 @@
 import random
-import json
+import csv
 import numpy as np
 import cma
 
@@ -14,29 +14,43 @@ class Solver(Enum):
 
 class EvolutionaryStrategy:
     
-    def __init__(self, solver:Solver, population_size=255, max_generations=None, qtde_seeds=1, service_speed=7.0, b_series_json=None):
+    def __init__(self, solver:Solver, population_size=255, max_generations=None, qtde_seeds=1, service_speed=7.0, b_series_json=None, number_of_blades=None):
         
         self.solver             = solver
         self.population_size    = population_size
-        self.max_generations     = max_generations # run solver for this generations
+        self.max_generations    = max_generations
         self.qtde_seeds         = qtde_seeds
         self.valid_solutions    = {
+                                    "V_S":[],
                                     "Z":[],
                                     "D":[],
                                     "AEdAO":[],
                                     "PdD":[],
                                     "P_B":[],
                                     "Strength":[],
+                                    "Strength_Min":[],
                                     "Cavitation":[],
-                                    "Tip Velocity":[],
+                                    "Cavitation_Max":[],
+                                    "Tip_Velocity":[],
+                                    "Tip_Velocity_Max":[],
                                     "Generation":[],
-                                    "Run":[],} 
+                                    "Run":[]
+                                } 
+        
+        if service_speed == None:
+            raise Exception('Must provide service_speed parameter')
+        
         self.service_speed      = service_speed
         
         if b_series_json == None:
             raise Exception('Must provide b_series_json parameter')
         
         self.b_series           = b_series_json
+        
+        if number_of_blades == None:
+            raise Exception('Must provide number_of_blades parameter')
+        
+        self.number_of_blades = number_of_blades
     
     def run_solver(self):
         
@@ -45,31 +59,33 @@ class EvolutionaryStrategy:
             
         for seed in range(1, self.qtde_seeds + 1):
         
-            # random.seed(seed)
+            random.seed(seed)
             
             x0 =  [
                     random.uniform(self.b_series['range_D'][0],     self.b_series['range_D'][1]),
                     random.uniform(self.b_series['range_AEdAO'][0], self.b_series['range_AEdAO'][1]),
                     random.uniform(self.b_series['range_PdD'][0],   self.b_series['range_PdD'][1])
                 ]
-
-            # print("D    ", x0[0])
-            # print("AEdAO", x0[1])
-            # print("PdD  ", x0[2])
             
             if self.solver.value == 1:
-                self.__run_cma(x0=x0, lower_bounds=lower_bounds, upper_bounds=upper_bounds, run_number=seed)
+                self.__run_cma(x0=x0, sigma_init=2.0, lower_bounds=lower_bounds, upper_bounds=upper_bounds, run_number=seed)
         
-    def __fitness_function(self, x, Z, generation, run_number):
-        D     = x[0]
-        AEdAO = x[1]
-        PdD   = x[2]
+    def __fitness_function(self, x, generation, run_number):
+        V_S     = self.service_speed
+        D       = x[0]
+        AEdAO   = x[1]
+        PdD     = x[2]
+        Z       = self.number_of_blades
         
-        print("D    ", x[0])
-        print("AEdAO", x[1])
-        print("PdD  ", x[2])
+        print("Seed      ", run_number)
+        print("Generation", generation)
+        print("V_S       ", V_S)
+        print("Z         ", Z)
+        print("D         ", x[0])
+        print("AEdAO     ", x[1])
+        print("PdD       ", x[2])
         
-        P_B, strength,strengthMin, cavitation,cavitationMax, velocity,velocityMax = evaluate(self.service_speed,D,Z,AEdAO,PdD)
+        P_B, strength,strengthMin, cavitation,cavitationMax, velocity,velocityMax = evaluate(V_S,D,Z,AEdAO,PdD)
 
         cavitation_penalty = max(((cavitation - cavitationMax)/cavitationMax), 0) 
         tip_velocity_penalty = max(((velocity - velocityMax)/velocityMax), 0)
@@ -80,15 +96,23 @@ class EvolutionaryStrategy:
         # Fitness is Power Brake multiplied by 1 + the percentage of each constraint
         fit_value = P_B * (1 + penalty)
         
-        if penalty == 0:            
+        print("Fitness", fit_value)
+        print("Penalty", ("Yes" if penalty != 0 else "No"))
+        print("")
+        
+        if penalty == 0:  
+            self.valid_solutions['V_S'].append(V_S)  
             self.valid_solutions['Z'].append(Z)
             self.valid_solutions['D'].append(D)
             self.valid_solutions['AEdAO'].append(AEdAO)
             self.valid_solutions['PdD'].append(PdD)
-            self.valid_solutions['P_B'].append(P_B)
+            self.valid_solutions['P_B'].append(fit_value)
             self.valid_solutions['Strength'].append(strength)
+            self.valid_solutions['Strength_Min'].append(strengthMin)
             self.valid_solutions['Cavitation'].append(cavitation)
-            self.valid_solutions['Tip Velocity'].append(velocity)
+            self.valid_solutions['Cavitation_Max'].append(cavitationMax)
+            self.valid_solutions['Tip_Velocity'].append(velocity)
+            self.valid_solutions['Tip_Velocity_Max'].append(velocityMax)
             self.valid_solutions['Generation'].append(generation)
             self.valid_solutions['Run'].append(run_number)
             
@@ -105,61 +129,46 @@ class EvolutionaryStrategy:
                 raise Exception("One of the parameters num_params or x0 must be provided!")
             
             x0 = np.zeros(num_params)
-
-        #TODO: implement paralelism 
-        for number_of_blades in range(self.b_series['range_Z'][0], self.b_series['range_Z'][1]):
+       
+        self.es = cma.CMAEvolutionStrategy(x0,
+                                        sigma_init,
+                                        {'popsize': self.population_size,
+                                        'bounds': [lower_bounds, upper_bounds]})
         
-            self.es = cma.CMAEvolutionStrategy(x0,
-                                            sigma_init,
-                                            {'popsize': self.population_size,
-                                            'bounds': [lower_bounds, upper_bounds]})
+        generation_counter = 1
+        
+        while not self.es.stop():
             
-            generation_counter = 1
+            if self.max_generations != None and generation_counter > self.max_generations:
+                print('Maximum generations reached.')
+                break
             
-            while not self.es.stop() or generation_counter <= self.max_generations:
-                population = self.es.ask()
-                self.es.tell(population, [self.__fitness_function(individual, number_of_blades, generation_counter, run_number) for individual in population])
-                self.es.disp()
-                generation_counter = generation_counter + 1
+            population = self.es.ask()
+            self.es.tell(population, [self.__fitness_function(individual, generation_counter, run_number) for individual in population])
+            self.es.disp()
             
-            self.es.result_pretty()
+            generation_counter = generation_counter + 1
         
-    # def get_best_result(self):
-    #     # get result with best fitness
-    #     best_result = max(self.solutions, key=(lambda x: x[2]))
-    #     # print the values
-    #     Z             =  best_result[0]
-    #     D, AEdAO, PdD =  best_result[1]
-    #     fitness       = -best_result[2]
-    #     print("D:",D,"Z:",Z,"AEdAO:",AEdAO,"PdD:",PdD)
-    #     print("fitness:",fitness)
-    #     return best_result
-    
-    # def solver_for_Z(self, Z, V_S, seed):
-    #     random.seed(seed)
-    #     x0 =  [
-    #             random.uniform(self.range_D[0],     self.range_D[1]),
-    #             random.uniform(self.range_AEdAO[0], self.range_AEdAO[1]),
-    #             random.uniform(self.range_PdD[0],   self.range_PdD[1])
-    #         ]
-
-    #     # defines CMA-ES algorithm solver
-    #     cmaes = cma.CMAEvolutionStrategy(x0, 
-    #                                         self.sigma, {'popsize': self.population_size, 
-    #                                                     'bounds': [self.lower_bounds, self.upper_bounds]})
-
+        self.es.result_pretty()
         
-    #     # run the solver
-    #     history, best_solution = self.test_solver(cmaes, V_S, Z)
+    def get_best_result(self):
+        # get result with best fitness 
         
-    #     # print best solution
-    #     D       = best_solution[0]
-    #     AEdAO   = best_solution[1]
-    #     PdD     = best_solution[2]
-    #     fitness = history[-1]
-    #     print("Z:",Z, "Best Solution:", best_solution, 'with fitness:', fitness)
-
-    #     return [Z, best_solution, fitness, history] 
-    
-    
+        if len(self.valid_solutions['P_B']) == 0:
+            return None
+         
+        min_P_B = min(self.valid_solutions['P_B'])
+        
+        index_of_best = self.valid_solutions['P_B'].index(min_P_B)
+        
+        # print the values
+        Z       = self.valid_solutions['Z'][index_of_best]
+        D       = self.valid_solutions['D'][index_of_best]
+        AEdAO   = self.valid_solutions['AEdAO'][index_of_best]
+        PdD     = self.valid_solutions['PdD'][index_of_best]
+        fitness = self.valid_solutions['P_B'][index_of_best]
+        
+        # print("D:",D,"Z:",Z,"AEdAO:",AEdAO,"PdD:",PdD)
+        # print("fitness:",fitness)
+        return [Z, D, AEdAO, PdD, fitness]
     

@@ -2,7 +2,7 @@ import numpy as np
 
 from still_watter_resistance import calculate_still_watter_resistance
 from still_watter_propulsion_factors import calculate_propulsion_factors
-from propeller_performance import calculate_propeller_performance
+from propeller_performance import PropellerPerformance
 
 def evaluate(V_S, D, Z, AEdAO, PdD):
     # Computation of total resistance in still water
@@ -30,9 +30,9 @@ def evaluate(V_S, D, Z, AEdAO, PdD):
      
     hk = 0.5
     try:
-       
+        evaluator = PropellerPerformance()
         # Computation of propeller performance in still water
-        n, P_O, etaO, t075dD, tmin075dD, tal07R, cavLim, Vtip, Vtipmax = calculate_propeller_performance(Rtotal, V_S, t, w, etaR, zP, Z, D, PdD, AEdAO, hk, T_A)
+        n, P_O, etaO, t075dD, tmin075dD, tal07R, cavLim, Vtip, Vtipmax = evaluator.calculate_propeller_performance(Rtotal, V_S, t, w, etaR, zP, Z, D, PdD, AEdAO, hk, T_A)
 
         # Computation of brake power in still water
         etaS = 0.99
