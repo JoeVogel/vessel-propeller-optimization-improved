@@ -2,6 +2,7 @@ import random
 import csv
 import numpy as np
 import cma
+import os
 
 from evaluate_propeller import evaluate
 from multiprocessing.pool import ThreadPool 
@@ -14,10 +15,11 @@ class Solver(Enum):
 
 class EvolutionaryStrategy:
     
-    def __init__(self, solver:Solver, population_size=255, max_generations=None, qtde_seeds=1, service_speed=7.0, b_series_json=None, number_of_blades=None):
+    def __init__(self, solver:Solver, population_size=255, max_generations=None, qtde_seeds=1, sigma_init=0.1, service_speed=7.0, b_series_json=None, number_of_blades=None, run_folder=None):
         
         self.solver             = solver
         self.population_size    = population_size
+        self.sigma_init         = sigma_init
         self.max_generations    = max_generations
         self.qtde_seeds         = qtde_seeds
         self.valid_solutions    = {
@@ -51,13 +53,18 @@ class EvolutionaryStrategy:
             raise Exception('Must provide number_of_blades parameter')
         
         self.number_of_blades = number_of_blades
+        
+        if run_folder == None:
+            raise Exception('Must provide run folder parameter')
+        
+        self.run_folder = run_folder
     
     def run_solver(self):
         
         lower_bounds = [self.b_series['range_D'][0], self.b_series['range_AEdAO'][0], self.b_series['range_PdD'][0]]
         upper_bounds = [self.b_series['range_D'][1], self.b_series['range_AEdAO'][1], self.b_series['range_PdD'][1]]
             
-        for seed in range(1, self.qtde_seeds + 1):
+        for seed in range(0, self.qtde_seeds):
         
             random.seed(seed)
             
@@ -68,7 +75,7 @@ class EvolutionaryStrategy:
                 ]
             
             if self.solver.value == 1:
-                self.__run_cma(x0=x0, sigma_init=2.0, lower_bounds=lower_bounds, upper_bounds=upper_bounds, run_number=seed)
+                self.__run_cma(x0=x0, sigma_init=0.1, lower_bounds=lower_bounds, upper_bounds=upper_bounds, run_number=seed)
         
     def __fitness_function(self, x, generation, run_number):
         V_S     = self.service_speed
@@ -92,13 +99,28 @@ class EvolutionaryStrategy:
         strenght_penalty = max(((strengthMin - strength)/strengthMin), 0)
 
         penalty = cavitation_penalty + tip_velocity_penalty + strenght_penalty
+        print("Penalty", ("Yes" if penalty != 0 else "No"))
         
         # Fitness is Power Brake multiplied by 1 + the percentage of each constraint
         fit_value = P_B * (1 + penalty)
         
         print("Fitness", fit_value)
-        print("Penalty", ("Yes" if penalty != 0 else "No"))
         print("")
+        
+        csv_path = self.run_folder + '/all_results.csv'
+        
+        header = ["V_S", "Z", "D", "AEdAO", "PdD", "P_B", "Strength", "Strength_Min", "Cavitation", "Cavitation_Max", "Tip_Velocity", "Tip_Velocity_Max", "Generation", "Run", "Valid"]
+        data = [V_S, Z, D, AEdAO, PdD, P_B, strength,strengthMin, cavitation,cavitationMax, velocity,velocityMax, generation, run_number, (True if penalty == 0 else False)]
+        
+        file_exists = os.path.exists(csv_path)
+        
+        with open(csv_path, 'a', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            
+            if not file_exists:
+                writer.writerow(header)
+            
+            writer.writerow(data)
         
         if penalty == 0:  
             self.valid_solutions['V_S'].append(V_S)  
@@ -118,7 +140,7 @@ class EvolutionaryStrategy:
             
         # we want the minimal P_B
         # the solvers use the max value as best fitness, so
-        fit_value *= -1
+        # fit_value *= -1
         
         return fit_value   
         
