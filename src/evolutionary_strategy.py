@@ -1,8 +1,10 @@
 import random
 import csv
 import numpy as np
-import cma
 import os
+
+import cma
+from openai_es import OpenES
 
 from evaluate_propeller import evaluate
 from multiprocessing.pool import ThreadPool 
@@ -15,11 +17,22 @@ class Solver(Enum):
 
 class EvolutionaryStrategy:
     
-    def __init__(self, solver:Solver, population_size=255, max_generations=None, qtde_seeds=1, sigma_init=0.1, service_speed=7.0, b_series_json=None, number_of_blades=None, run_folder=None):
+    def __init__(self, solver:Solver, population_size=255, max_generations=None, qtde_seeds=1, service_speed=7.0, b_series_json=None, number_of_blades=None, run_folder=None):
         
+        # CMA_ES and OpenAI_ES
+        self.sigma_init             = 0.1
+        # OpenAI_ES              
+        self.sigma_decay            = 0.999    
+        self.learning_rate          = 0.01    
+        self.learning_rate_decay    = 0.9999   
+        self.weight_decay           = 0.01
+        self.antithetic             = False   
+        self.forget_best            = True
+        # General
+        self.generation_counter = 1
+        self.run_number         = 0
         self.solver             = solver
         self.population_size    = population_size
-        self.sigma_init         = sigma_init
         self.max_generations    = max_generations
         self.qtde_seeds         = qtde_seeds
         self.valid_solutions    = {
@@ -59,13 +72,28 @@ class EvolutionaryStrategy:
         
         self.run_folder = run_folder
     
+    def configure_cma(self, sigma_init):
+        self.sigma_init = sigma_init
+     
+    def configure_openai_es(self, sigma_init, sigma_decay, learning_rate, learning_rate_decay, weight_decay, antithetic, forget_best):
+        self.sigma_init             = sigma_init   
+        self.sigma_decay            = sigma_decay
+        self.learning_rate          = learning_rate
+        self.learning_rate_decay    = learning_rate_decay
+        self.weight_decay           = weight_decay 
+        self.antithetic             = antithetic   
+        self.forget_best            = forget_best
+     
     def run_solver(self):
         
-        lower_bounds = [self.b_series['range_D'][0], self.b_series['range_AEdAO'][0], self.b_series['range_PdD'][0]]
-        upper_bounds = [self.b_series['range_D'][1], self.b_series['range_AEdAO'][1], self.b_series['range_PdD'][1]]
+        bounds          = [self.b_series['range_D'], self.b_series['range_AEdAO'], self.b_series['range_PdD']]
+        lower_bounds    = [self.b_series['range_D'][0], self.b_series['range_AEdAO'][0], self.b_series['range_PdD'][0]]
+        upper_bounds    = [self.b_series['range_D'][1], self.b_series['range_AEdAO'][1], self.b_series['range_PdD'][1]]
             
         for seed in range(0, self.qtde_seeds):
         
+            # Seta seed do random para que a geração de números aleatórios seja reproduzível
+            # Usado em x0 e também nas eurísticas dos algoritmos como o DE e o CMA 
             random.seed(seed)
             
             x0 =  [
@@ -74,18 +102,45 @@ class EvolutionaryStrategy:
                     random.uniform(self.b_series['range_PdD'][0],   self.b_series['range_PdD'][1])
                 ]
             
+            self.run_number         = seed
+            self.generation_counter = 1
+            
             if self.solver.value == 1:
-                self.__run_cma(x0=x0, sigma_init=0.1, lower_bounds=lower_bounds, upper_bounds=upper_bounds, run_number=seed)
+                self.__run_cma(x0=x0, lower_bounds=lower_bounds, upper_bounds=upper_bounds)
+            elif self.solver.value == 2:
+                self.__run_openai_es(num_params=3, x0=x0, lower_bounds=lower_bounds, upper_bounds=upper_bounds)
+    
+    def get_best_result(self):
+        # get result with best fitness 
         
-    def __fitness_function(self, x, generation, run_number):
+        if len(self.valid_solutions['P_B']) == 0:
+            return None
+         
+        min_P_B = min(self.valid_solutions['P_B'])
+        
+        index_of_best = self.valid_solutions['P_B'].index(min_P_B)
+        
+        # print the values
+        Z       = self.valid_solutions['Z'][index_of_best]
+        D       = self.valid_solutions['D'][index_of_best]
+        AEdAO   = self.valid_solutions['AEdAO'][index_of_best]
+        PdD     = self.valid_solutions['PdD'][index_of_best]
+        fitness = self.valid_solutions['P_B'][index_of_best]
+        
+        # print("D:",D,"Z:",Z,"AEdAO:",AEdAO,"PdD:",PdD)
+        # print("fitness:",fitness)
+        return [Z, D, AEdAO, PdD, fitness]
+       
+    def __fitness_function(self, x):
+        
         V_S     = self.service_speed
         D       = x[0]
         AEdAO   = x[1]
         PdD     = x[2]
         Z       = self.number_of_blades
         
-        print("Seed      ", run_number)
-        print("Generation", generation)
+        print("Seed      ", self.run_number)
+        print("Generation", self.generation_counter)
         print("V_S       ", V_S)
         print("Z         ", Z)
         print("D         ", x[0])
@@ -110,7 +165,7 @@ class EvolutionaryStrategy:
         csv_path = self.run_folder + '/all_results.csv'
         
         header = ["V_S", "Z", "D", "AEdAO", "PdD", "P_B", "Strength", "Strength_Min", "Cavitation", "Cavitation_Max", "Tip_Velocity", "Tip_Velocity_Max", "Generation", "Run", "Valid"]
-        data = [V_S, Z, D, AEdAO, PdD, P_B, strength,strengthMin, cavitation,cavitationMax, velocity,velocityMax, generation, run_number, (True if penalty == 0 else False)]
+        data = [V_S, Z, D, AEdAO, PdD, P_B, strength,strengthMin, cavitation,cavitationMax, velocity,velocityMax, self.generation_counter, self.run_number, (True if penalty == 0 else False)]
         
         file_exists = os.path.exists(csv_path)
         
@@ -135,16 +190,16 @@ class EvolutionaryStrategy:
             self.valid_solutions['Cavitation_Max'].append(cavitationMax)
             self.valid_solutions['Tip_Velocity'].append(velocity)
             self.valid_solutions['Tip_Velocity_Max'].append(velocityMax)
-            self.valid_solutions['Generation'].append(generation)
-            self.valid_solutions['Run'].append(run_number)
+            self.valid_solutions['Generation'].append(self.generation_counter)
+            self.valid_solutions['Run'].append(self.run_number)
             
         # we want the minimal P_B
         # the solvers use the max value as best fitness, so
         # fit_value *= -1
         
         return fit_value   
-        
-    def __run_cma(self, num_params=None, x0=None, sigma_init=0.10, lower_bounds=None, upper_bounds=None, run_number=1):
+ 
+    def __run_cma(self, num_params=None, x0=None, lower_bounds=None, upper_bounds=None):
         
         if x0 == None:
             if num_params == None:
@@ -153,44 +208,51 @@ class EvolutionaryStrategy:
             x0 = np.zeros(num_params)
        
         self.es = cma.CMAEvolutionStrategy(x0,
-                                        sigma_init,
+                                        self.sigma_init,
                                         {'popsize': self.population_size,
                                         'bounds': [lower_bounds, upper_bounds]})
         
-        generation_counter = 1
-        
         while not self.es.stop():
             
-            if self.max_generations != None and generation_counter > self.max_generations:
+            if self.max_generations != None and self.generation_counter > self.max_generations:
                 print('Maximum generations reached.')
                 break
             
             population = self.es.ask()
-            self.es.tell(population, [self.__fitness_function(individual, generation_counter, run_number) for individual in population])
+            self.es.tell(population, [self.__fitness_function(individual, self.generation_counter) for individual in population])
             self.es.disp()
             
-            generation_counter = generation_counter + 1
+            self.generation_counter += 1
         
         self.es.result_pretty()
-        
-    def get_best_result(self):
-        # get result with best fitness 
-        
-        if len(self.valid_solutions['P_B']) == 0:
-            return None
-         
-        min_P_B = min(self.valid_solutions['P_B'])
-        
-        index_of_best = self.valid_solutions['P_B'].index(min_P_B)
-        
-        # print the values
-        Z       = self.valid_solutions['Z'][index_of_best]
-        D       = self.valid_solutions['D'][index_of_best]
-        AEdAO   = self.valid_solutions['AEdAO'][index_of_best]
-        PdD     = self.valid_solutions['PdD'][index_of_best]
-        fitness = self.valid_solutions['P_B'][index_of_best]
-        
-        # print("D:",D,"Z:",Z,"AEdAO:",AEdAO,"PdD:",PdD)
-        # print("fitness:",fitness)
-        return [Z, D, AEdAO, PdD, fitness]
     
+    def __run_openai_es(self, num_params=None, x0=None, lower_bounds=None, upper_bounds=None):
+        
+        self.es = OpenES(num_params,
+                         x0=x0,
+                         popsize=self.population_size,
+                         sigma_init=self.sigma_init,
+                         sigma_decay=self.sigma_decay,
+                         learning_rate=self.learning_rate,
+                         learning_rate_decay=self.learning_rate_decay,
+                         weight_decay=self.weight_decay, 
+                         antithetic=self.antithetic,
+                         forget_best=self.forget_best,
+                         lower_bounds=lower_bounds,
+                         upper_bounds=upper_bounds )
+        
+        #TODO: implementar avaliação de convergencia
+        for i in range(self.max_generations):
+            
+            population = self.es.ask()
+            
+            fitness_list = np.zeros(self.es.popsize)
+            
+            for j in range(len(population)):
+                fitness_list[j] = self.__fitness_function(population[j])
+                
+            self.es.tell(fitness_list)
+            
+            result = self.es.result() # first element is the best solution, second element is the best fitness
+            
+            self.generation_counter += 1
