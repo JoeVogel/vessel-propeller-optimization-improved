@@ -2,6 +2,7 @@ import numpy as np
 import time
 from scipy.interpolate import interp1d
 from scipy.optimize import root_scalar
+from scipy.optimize import minimize_scalar
 
 class PropellerPerformance:
     
@@ -294,7 +295,7 @@ class PropellerPerformance:
                         [-0.0004659, 0, 6, 2, 2],
                         [0.0000554194, 1, 6, 2, 2]
                     ])
-        
+    
     def objective_function(self, J, PdD, AEdAO, Z, T, rho, Va, D, is_correction):
         self.Kt = 0
         
@@ -328,13 +329,17 @@ class PropellerPerformance:
             
         for i in range(39):
             self.Kt += self.KtM[i, 0] * J ** self.KtM[i, 1] * PdD ** self.KtM[i, 2] * AEdAO ** self.KtM[i, 3] * Z ** self.KtM[i, 4]
+        
         self.Kts = J ** 2 * T / (rho * Va ** 2 * D ** 2)
-        return self.Kt - self.Kts
+        
+        # print((self.Kts-self.Kt)/self.Kt) # residual error
+        
+        return abs(self.Kt - self.Kts)
 
     def calculate_propeller_performance(self, R, Vs, t, w, etaR, zP, Z, D, PdD, AEdAO, hk, Ta):
         # Water input data
         rho = 999  # [kg/m^3] water density
-        nu = 1.1390e-6  # [m^2/s] kinematic viscosity
+        nu = 0.0000011390  # [m^2/s] kinematic viscosity
         g = 9.80665  # [m/s^2] gravity acceleration
         patm = 101325  # [Pa] atmospheric pressure
         pv = 1704  # [Pa] vapour pressure of seawater (15 °C)
@@ -349,15 +354,14 @@ class PropellerPerformance:
         C075R = 2.073 * AEdAO * D / Z  # Propeller chord length at 0.75 of radius [m]
 
         # Finding J in order to have Kt (thrust coef.) = Kts (ship thrust coef.)
-
-        initial_guess_J = 0.5
-            
-        # Finding the root using scipy.optimize.root_scalar
-        result = root_scalar(self.objective_function, args=(PdD, AEdAO, Z, T, rho, Va, D, False), bracket=[0, 1], x0=initial_guess_J)
-
+        result = minimize_scalar(
+            self.objective_function, 
+            args=(PdD, AEdAO, Z, T, rho, Va, D, False), 
+            bounds=[0, 3])
+        
         # Extracting the optimized J value
-        J = result.root
-
+        J = result.x
+        
         # Propeller speed calculation
         n = Va / (J * D)
 
@@ -372,13 +376,10 @@ class PropellerPerformance:
                 
                 # Finding J in order to have Kt (thrust coef.) = Kts (ship thrust coef.)
 
-                initial_guess_J = 0.5
-                
-                # Finding the root using scipy.optimize.root_scalar
-                result = root_scalar(self.objective_function, args=(PdD, AEdAO, Z, T, rho, Va, D, True), bracket=[0, 1], x0=initial_guess_J)
+                result = minimize_scalar(self.objective_function, args=(PdD, AEdAO, Z, T, rho, Va, D, True), bounds=[0, 3])
 
                 # Extracting the optimized J value
-                J = result.root
+                J = result.x
                 
                 # Propeller speed calculation
                 n = Va / (J * D)

@@ -1,9 +1,11 @@
 import numpy as np
+from scipy.interpolate import PchipInterpolator
 
 def calculate_still_watter_resistance(L, B, T_F, T_A, nabla, LCB, A_BT, h_B, C_M, C_WP, A_T, S_APP, apk2, Cstern, V_S):
     # Constantes
     g = 9.80665          # aceleração de gravidade [m/s**2]
-    nu = 1.1390e-6       # viscosidade cinemática da água doce a 15°C [m**2/s]
+    # nu = 1.1390e-6       # viscosidade cinemática da água doce a 15°C [m**2/s]
+    nu = 0.0000011390       # viscosidade cinemática da água doce a 15°C [m**2/s]
     rho = 999            # densidade da água doce [kg/m**3]
     d = -0.9
     
@@ -139,6 +141,10 @@ def calculate_still_watter_resistance(L, B, T_F, T_A, nabla, LCB, A_BT, h_B, C_M
     # Resistência total
     RtSim = np.array([0, 698.9, 2332, 7643, 22170])  # N
     Vsim = np.array([0, 0.514444, 1.54333, 2.57222, 3.858])  # m/s
-    Rtotal = np.interp(V_S, Vsim, RtSim) / 1000  # kN
+    
+    pchip = PchipInterpolator(Vsim, RtSim)
+       
+    Rtotal = pchip(V_S) 
+    Rtotal = Rtotal / 1000  # kN
 
     return Rtotal, C_B, C_P, S, apk1, C_F, C_A, Fn, i_E
