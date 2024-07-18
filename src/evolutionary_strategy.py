@@ -5,6 +5,7 @@ import os
 
 import cma
 from openai_es import OpenES
+from mealpy import FloatVar, HGSO, PSO
 
 from evaluate_propeller import evaluate
 from multiprocessing.pool import ThreadPool 
@@ -14,6 +15,8 @@ from enum import Enum
 class Solver(Enum):
     CMA_ES = 1
     OPENAI_ES = 2
+    HGSO = 3
+    PSO = 4
 
 class EvolutionaryStrategy:
     
@@ -28,6 +31,10 @@ class EvolutionaryStrategy:
         self.weight_decay           = 0.01
         self.antithetic             = False   
         self.forget_best            = True
+        # PSO
+        self.c1     = 2.05
+        self.c2     = 20.5 
+        self.alpha  =0.4
         # General
         self.generation_counter = 1
         self.run_number         = 0
@@ -83,6 +90,14 @@ class EvolutionaryStrategy:
         self.weight_decay           = weight_decay 
         self.antithetic             = antithetic   
         self.forget_best            = forget_best
+    
+    def configure_hgso(self):
+        pass
+
+    def configure_pso(self, c1, c2, alpha):
+        self.c1     = c1
+        self.c2     = c2
+        self.alpha  = alpha
      
     def run_solver(self):
         
@@ -109,6 +124,11 @@ class EvolutionaryStrategy:
                 self.__run_cma(x0=x0, lower_bounds=lower_bounds, upper_bounds=upper_bounds)
             elif self.solver.value == 2:
                 self.__run_openai_es(num_params=3, x0=x0, lower_bounds=lower_bounds, upper_bounds=upper_bounds)
+            elif self.solver.value == 3:
+                self.__run_hgso(lower_bounds=lower_bounds, upper_bounds=upper_bounds)
+            elif self.solver.value == 4:
+                self.__run_pso(lower_bounds=lower_bounds, upper_bounds=upper_bounds)
+
     
     def get_best_result(self):
         # get result with best fitness 
@@ -256,3 +276,32 @@ class EvolutionaryStrategy:
             result = self.es.result() # first element is the best solution, second element is the best fitness
             
             self.generation_counter += 1
+    
+    def __run_hgso(self, lower_bounds=None, upper_bounds=None):
+
+        problem_dict = {
+            "bounds": FloatVar(lb=lower_bounds, ub=upper_bounds, name="delta"),
+            "minmax": "min",
+            "obj_func": self.__fitness_function
+        }
+
+        model = HGSO.OriginalHGSO(epoch=self.max_generations, pop_size=self.population_size)
+
+        g_best = model.solve(problem_dict)
+        
+        print(f"Solution: {g_best.solution}, Fitness: {g_best.target.fitness}")
+        print(f"Solution: {model.g_best.solution}, Fitness: {model.g_best.target.fitness}")
+    
+    def __run_pso(self, lower_bounds=None, upper_bounds=None):
+
+        problem_dict = {
+            "bounds": FloatVar(lb=lower_bounds, ub=upper_bounds, name="delta"),
+            "minmax": "min",
+            "obj_func": self.__fitness_function
+        }
+
+        model = PSO.AIW_PSO(epoch=self.max_generations, pop_size=self.population_size, c1=self.c1, c2=self.c2, alpha=self.alpha)
+        g_best = model.solve(problem_dict)
+        
+        print(f"Solution: {g_best.solution}, Fitness: {g_best.target.fitness}")
+        print(f"Solution: {model.g_best.solution}, Fitness: {model.g_best.target.fitness}")
