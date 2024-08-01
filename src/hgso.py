@@ -158,7 +158,8 @@ class HGSO():
             j = id % self.n_elements
             i = int((id-j) / self.n_elements)
             X_new = uniform(self.lb, self.ub)
-            fit = self.get_fitness_position(X_new, self.ID_MIN_PROB)
+            X_new_flagged = np.append(X_new, id) # Adiciona o id ao final para que este elemento substitua o individuo anterior na lista da fitness_function
+            fit = self.get_fitness_position(X_new_flagged, self.ID_MIN_PROB)
             self.pop[id] = [X_new, fit, i]
             self.group[i][j] = [X_new, fit, i]
 

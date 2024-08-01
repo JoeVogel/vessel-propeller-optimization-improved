@@ -2,12 +2,12 @@ import random
 import csv
 import numpy as np
 import os
+import pandas as pd
 
 import cma
 from openai import OpenAIES
 from hgso import HGSO
-# from mealpy import FloatVar, HGSO, PSO
-from mealpy import FloatVar, PSO
+from pso import PSO
 
 from evaluate_propeller import evaluate
 from multiprocessing.pool import ThreadPool 
@@ -34,9 +34,9 @@ class EvolutionaryStrategy:
         self.antithetic             = False   
         self.forget_best            = True
         # PSO
-        self.c1     = 2.05
-        self.c2     = 20.5 
-        self.alpha  =0.4
+        self.c1     = 1.0
+        self.c2     = 2.0 
+        self.weight = 0.5
         # General
         self.generation_counter = 1
         self.run_number         = 0
@@ -44,23 +44,22 @@ class EvolutionaryStrategy:
         self.population_size    = population_size
         self.max_generations    = max_generations
         self.qtde_seeds         = qtde_seeds
-        self.valid_solutions    = {
-                                    "V_S":[],
-                                    "Z":[],
-                                    "D":[],
-                                    "AEdAO":[],
-                                    "PdD":[],
-                                    "P_B":[],
-                                    "Strength":[],
-                                    "Strength_Min":[],
-                                    "Cavitation":[],
-                                    "Cavitation_Max":[],
-                                    "Tip_Velocity":[],
-                                    "Tip_Velocity_Max":[],
-                                    "Generation":[],
-                                    "Run":[]
-                                } 
-        
+        self.all_results        = pd.DataFrame(columns=['V_S',
+                                                        'Z', 
+                                                        'D', 
+                                                        'AEdAO', 
+                                                        'PdD', 
+                                                        'P_B', 
+                                                        'Strength', 
+                                                        'Strength_Min', 
+                                                        'Cavitation', 
+                                                        'Cavitation_Max', 
+                                                        'Tip_Velocity', 
+                                                        'Tip_Velocity_Max', 
+                                                        'Generation', 
+                                                        'Run', 
+                                                        'Valid'])
+
         if service_speed == None:
             raise Exception('Must provide service_speed parameter')
         
@@ -81,6 +80,9 @@ class EvolutionaryStrategy:
         
         self.run_folder = run_folder
     
+    def get_valids(self):
+        return self.all_results[self.all_results['Valid'] == True]
+
     def configure_cma(self, sigma_init):
         self.sigma_init = sigma_init
      
@@ -96,10 +98,10 @@ class EvolutionaryStrategy:
     def configure_hgso(self):
         pass
 
-    def configure_pso(self, c1, c2, alpha):
+    def configure_pso(self, c1, c2, weight):
         self.c1     = c1
         self.c2     = c2
-        self.alpha  = alpha
+        self.weight = weight
      
     def run_solver(self):
         
@@ -183,38 +185,35 @@ class EvolutionaryStrategy:
         print("Fitness", fit_value)
         print("")
         
-        if (self.generation_counter > 0):
-        
-            csv_path = self.run_folder + '/all_results.csv'
-            
-            header = ["V_S", "Z", "D", "AEdAO", "PdD", "P_B", "Strength", "Strength_Min", "Cavitation", "Cavitation_Max", "Tip_Velocity", "Tip_Velocity_Max", "Generation", "Run", "Valid"]
-            data = [V_S, Z, D, AEdAO, PdD, P_B, strength,strengthMin, cavitation,cavitationMax, velocity,velocityMax, self.generation_counter, self.run_number, (True if penalty == 0 else False)]
-            
-            file_exists = os.path.exists(csv_path)
-            
-            with open(csv_path, 'a', newline='') as csvfile:
-                writer = csv.writer(csvfile)
-                
-                if not file_exists:
-                    writer.writerow(header)
-                
-                writer.writerow(data)
-            
-            if penalty == 0:  
-                self.valid_solutions['V_S'].append(V_S)  
-                self.valid_solutions['Z'].append(Z)
-                self.valid_solutions['D'].append(D)
-                self.valid_solutions['AEdAO'].append(AEdAO)
-                self.valid_solutions['PdD'].append(PdD)
-                self.valid_solutions['P_B'].append(fit_value)
-                self.valid_solutions['Strength'].append(strength)
-                self.valid_solutions['Strength_Min'].append(strengthMin)
-                self.valid_solutions['Cavitation'].append(cavitation)
-                self.valid_solutions['Cavitation_Max'].append(cavitationMax)
-                self.valid_solutions['Tip_Velocity'].append(velocity)
-                self.valid_solutions['Tip_Velocity_Max'].append(velocityMax)
-                self.valid_solutions['Generation'].append(self.generation_counter)
-                self.valid_solutions['Run'].append(self.run_number)
+        if (self.generation_counter > 0): # Se for 0 significa que é a geração da inicialização
+
+            new_row = {
+                'V_S':V_S,  
+                'Z':Z,
+                'D':D,
+                'AEdAO':AEdAO,
+                'PdD':PdD,
+                'P_B':fit_value,
+                'Strength':strength,
+                'Strength_Min':strengthMin,
+                'Cavitation':cavitation,
+                'Cavitation_Max':cavitationMax,
+                'Tip_Velocity':velocity,
+                'Tip_Velocity_Max':velocityMax,
+                'Generation':self.generation_counter,
+                'Run':self.run_number,
+                'Valid':(True if penalty == 0 else False)
+            }
+
+            if len(x) == 3:
+                self.all_results.loc[len(self.all_results)] = new_row
+            elif len(x) == 4: # HGSO altera aleatóriamente um dos valores da população, portanto precisa ser substituido
+                filtered_df = self.all_results[(self.all_results['Generation'] == self.generation_counter) & (self.all_results['Run'] == self.run_number)]
+                id = int(x[3])
+                real_index = filtered_df.index[id]
+                self.all_results.loc[real_index] = new_row
+            else:
+                raise Exception('Wrong number of parameters')
             
         # we want the minimal P_B
         # the solvers use the max value as best fitness, so
@@ -282,7 +281,7 @@ class EvolutionaryStrategy:
     
     def __run_hgso(self, lower_bounds=None, upper_bounds=None, seed=None):
         
-        self.generation_counter = 0 # Para desconsiderar a população inicial
+        self.generation_counter = 0 # Para desconsiderar a população inicial gerada e avaliada na inicialização
         
         obj_func = self.__fitness_function
         
@@ -294,27 +293,27 @@ class EvolutionaryStrategy:
                     pop_size=self.population_size, 
                     random_seed=seed)
 
+        self.generation_counter = 1
+
         while self.max_generations >= self.generation_counter:
             pos, fit, train_loss = hgso.solve(self.generation_counter)
             self.generation_counter += 1
 
-    
     def __run_pso(self, lower_bounds=None, upper_bounds=None, seed=None):
 
-        problem_dict = {
-            "bounds": FloatVar(lb=lower_bounds, ub=upper_bounds, name="delta"),
-            "minmax": "min",
-            "obj_func": self.__fitness_function
-        }
+        self.generation_counter = 0 # Para desconsiderar a população inicial gerada e avaliada na inicialização
+        
+        obj_func = self.__fitness_function
 
-        model = PSO.AIW_PSO(epoch=self.max_generations, pop_size=self.population_size, c1=self.c1, c2=self.c2, alpha=self.alpha)
+        pso = PSO(obj_func=obj_func, 
+                  dimension=3, 
+                  lower_bounds=lower_bounds, 
+                  upper_bounds=upper_bounds, 
+                  num_particles=self.population_size, 
+                  seed=seed)
         
-        g_best = model.solve(problem_dict, 
-                             mode='single', 
-                             n_workers=None, 
-                             termination=None, 
-                             starting_solutions=None,
-                             seed=seed)
+        self.generation_counter = 1
         
-        print(f"Solution: {g_best.solution}, Fitness: {g_best.target.fitness}")
-        print(f"Solution: {model.g_best.solution}, Fitness: {model.g_best.target.fitness}")
+        while self.max_generations >= self.generation_counter:
+            pso.solve()
+            self.generation_counter += 1

@@ -7,22 +7,21 @@ import csv
 from datetime import datetime
 from evolutionary_strategy import Solver, EvolutionaryStrategy
 
-all_valid_solutions = {
-                        "V_S":[],
-                        "Z":[],
-                        "D":[],
-                        "AEdAO":[],
-                        "PdD":[],
-                        "P_B":[],
-                        "Strength":[],
-                        "Strength_Min":[],
-                        "Cavitation":[],
-                        "Cavitation_Max":[],
-                        "Tip_Velocity":[],
-                        "Tip_Velocity_Max":[],
-                        "Generation":[],
-                        "Run":[]
-                    }
+columns = ['V_S',
+            'Z', 
+            'D', 
+            'AEdAO', 
+            'PdD', 
+            'P_B', 
+            'Strength', 
+            'Strength_Min', 
+            'Cavitation', 
+            'Cavitation_Max', 
+            'Tip_Velocity', 
+            'Tip_Velocity_Max', 
+            'Generation', 
+            'Run', 
+            'Valid']
 
 def get_best(file_path):
     df = pd.read_csv(file_path) 
@@ -60,7 +59,7 @@ def print_stats(run_folder):
         has_valids, min_pb_row = get_best(run_folder + '/' + v_S_folder + '/all_results.csv')
         if has_valids: print(str(v_S), "{:.3f}".format(min_pb_row.iloc[5]), min_pb_row.iloc[1], "{:.3f}".format(min_pb_row.iloc[2]), "{:.3f}".format(min_pb_row.iloc[3]), "{:.3f}".format(min_pb_row.iloc[4]))
 
-def run_cma(generations, population_size, range_V_S, seeds, b_series):
+def run_cma(generations, population_size, range_V_S, seeds, b_series): 
     solver      = Solver.CMA_ES
     sigma_init  = 0.1
     
@@ -72,6 +71,8 @@ def run_cma(generations, population_size, range_V_S, seeds, b_series):
     start_time = time.time()
     
     for V_S in range_V_S:
+
+        all_results = pd.DataFrame(columns=columns)
         
         V_S_str = str(V_S).replace('.', '_')
         vS_folder = run_folder + '/' + V_S_str
@@ -99,9 +100,13 @@ def run_cma(generations, population_size, range_V_S, seeds, b_series):
             
             es.run_solver()
             
-            df = pd.DataFrame(es.valid_solutions)
+            df = es.get_valids()
             
             df.to_csv(Z_folder + '/valids.csv', index=False)
+
+            all_results = pd.concat([all_results, es.all_results], ignore_index=True)
+    
+        all_results.to_csv(vS_folder+'/all_results.csv', index=False)
     
     end_time = time.time()
     
@@ -116,6 +121,7 @@ def run_cma(generations, population_size, range_V_S, seeds, b_series):
     print_stats(run_folder)
 
 def run_openai_es(generations, population_size, range_V_S, seeds, b_series):
+    
     solver      = Solver.OPENAI_ES
     sigma_init  = 0.1
     
@@ -127,7 +133,9 @@ def run_openai_es(generations, population_size, range_V_S, seeds, b_series):
     start_time = time.time()
     
     for V_S in range_V_S:
-        
+
+        all_results = pd.DataFrame(columns=columns)
+
         V_S_str = str(V_S).replace('.', '_')
         vS_folder = run_folder + '/' + V_S_str
         
@@ -135,7 +143,7 @@ def run_openai_es(generations, population_size, range_V_S, seeds, b_series):
     
         # #TODO: implement paralelism 
         for Z in range(b_series['range_Z'][0], b_series['range_Z'][1] + 1):
-        
+            
             Z_str = str(Z)
             Z_folder = vS_folder + '/' + Z_str
         
@@ -154,9 +162,13 @@ def run_openai_es(generations, population_size, range_V_S, seeds, b_series):
             
             es.run_solver()
             
-            df = pd.DataFrame(es.valid_solutions)
+            df = es.get_valids()
             
             df.to_csv(Z_folder + '/valids.csv', index=False)
+
+            all_results = pd.concat([all_results, es.all_results], ignore_index=True)
+    
+        all_results.to_csv(vS_folder+'/all_results.csv', index=False)
     
     end_time = time.time()
     
@@ -171,6 +183,7 @@ def run_openai_es(generations, population_size, range_V_S, seeds, b_series):
     print_stats(run_folder)
 
 def run_hgso(generations, population_size, range_V_S, seeds, b_series):
+    
     solver  = Solver.HGSO
 
     datetime_now = datetime.now()
@@ -181,7 +194,9 @@ def run_hgso(generations, population_size, range_V_S, seeds, b_series):
     start_time = time.time()
 
     for V_S in range_V_S:
-        
+
+        all_results = pd.DataFrame(columns=columns)
+
         V_S_str = str(V_S).replace('.', '_')
         vS_folder = run_folder + '/' + V_S_str
         
@@ -208,10 +223,14 @@ def run_hgso(generations, population_size, range_V_S, seeds, b_series):
             
             es.run_solver()
             
-            df = pd.DataFrame(es.valid_solutions)
+            df = es.get_valids()
             
             df.to_csv(Z_folder + '/valids.csv', index=False)
+
+            all_results = pd.concat([all_results, es.all_results], ignore_index=True)
     
+        all_results.to_csv(vS_folder+'/all_results.csv', index=False)
+
     end_time = time.time()
     
     elapsed_time = (end_time - start_time) / 60
@@ -225,10 +244,11 @@ def run_hgso(generations, population_size, range_V_S, seeds, b_series):
     print_stats(run_folder)
 
 def run_pso(generations, population_size, range_V_S, seeds, b_series):
+    
     solver  = Solver.PSO
     c1      = 2.05
     c2      = 2.05
-    alpha   = 0.4
+    weight  = 0.4
 
     datetime_now = datetime.now()
     run_folder = 'results/' + str(solver.name) + '-' + datetime_now.strftime("%m_%d-%H_%M")
@@ -238,7 +258,7 @@ def run_pso(generations, population_size, range_V_S, seeds, b_series):
     start_time = time.time()
 
     for V_S in range_V_S:
-        
+        all_results = pd.DataFrame(columns=columns)
         V_S_str = str(V_S).replace('.', '_')
         vS_folder = run_folder + '/' + V_S_str
         
@@ -261,13 +281,17 @@ def run_pso(generations, population_size, range_V_S, seeds, b_series):
                                     number_of_blades=Z,
                                     run_folder=vS_folder)
             
-            es.configure_pso(c1=c1, c2=c2, alpha=alpha)
+            es.configure_pso(c1=c1, c2=c2, weight=weight)
             
             es.run_solver()
             
-            df = pd.DataFrame(es.valid_solutions)
+            df = es.get_valids()
             
             df.to_csv(Z_folder + '/valids.csv', index=False)
+
+            all_results = pd.concat([all_results, es.all_results], ignore_index=True)
+    
+        all_results.to_csv(vS_folder+'/all_results.csv', index=False)
     
     end_time = time.time()
     
@@ -275,8 +299,8 @@ def run_pso(generations, population_size, range_V_S, seeds, b_series):
     # print(f"Tempo decorrido: {elapsed_time:.2f} minutos")
     print(f"Tempo decorrido: {int(elapsed_time)} minutos")
     
-    header = ["range_V_S", "Solver", "Population_Size", "Max_Generations", "C1", "C2", "Alpha", "Seeds", "Elapsed_Time"]
-    data = [range_V_S, solver.name, population_size, generations, c1, c2, alpha, seeds, elapsed_time]
+    header = ["range_V_S", "Solver", "Population_Size", "Max_Generations", "C1", "C2", "Weight", "Seeds", "Elapsed_Time"]
+    data = [range_V_S, solver.name, population_size, generations, c1, c2, weight, seeds, elapsed_time]
     save_run_configs(run_folder, header, data)
     
     print_stats(run_folder)
@@ -299,5 +323,5 @@ if __name__ == "__main__":
 
     run_hgso(generations, population_size, range_V_S, seeds, b_series)
 
-    # run_pso(generations, population_size, range_V_S, seeds, b_series)
+    run_pso(generations, population_size, range_V_S, seeds, b_series)
     
