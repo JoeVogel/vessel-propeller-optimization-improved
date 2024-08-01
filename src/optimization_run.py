@@ -50,6 +50,16 @@ def save_run_configs(run_folder, header, data):
         writer.writerow(header)
         writer.writerow(data)
 
+def print_stats(run_folder):
+    print()
+
+    print("vS | P_B | Z | D | AEdAO | PdD")
+    
+    for v_S in range_V_S:
+        v_S_folder = str(v_S).replace('.', '_')
+        has_valids, min_pb_row = get_best(run_folder + '/' + v_S_folder + '/all_results.csv')
+        if has_valids: print(str(v_S), "{:.3f}".format(min_pb_row.iloc[5]), min_pb_row.iloc[1], "{:.3f}".format(min_pb_row.iloc[2]), "{:.3f}".format(min_pb_row.iloc[3]), "{:.3f}".format(min_pb_row.iloc[4]))
+
 def run_cma(generations, population_size, range_V_S, seeds, b_series):
     solver      = Solver.CMA_ES
     sigma_init  = 0.1
@@ -103,7 +113,7 @@ def run_cma(generations, population_size, range_V_S, seeds, b_series):
     data = [range_V_S, solver.name, population_size, generations, sigma_init, seeds, elapsed_time]
     save_run_configs(run_folder, header, data)
     
-    return run_folder
+    print_stats(run_folder)
 
 def run_openai_es(generations, population_size, range_V_S, seeds, b_series):
     solver      = Solver.OPENAI_ES
@@ -158,7 +168,7 @@ def run_openai_es(generations, population_size, range_V_S, seeds, b_series):
     data = [range_V_S, solver.name, population_size, generations, sigma_init, seeds, elapsed_time]
     save_run_configs(run_folder, header, data)
     
-    return run_folder
+    print_stats(run_folder)
 
 def run_hgso(generations, population_size, range_V_S, seeds, b_series):
     solver  = Solver.HGSO
@@ -212,7 +222,7 @@ def run_hgso(generations, population_size, range_V_S, seeds, b_series):
     data = [range_V_S, solver.name, population_size, generations, seeds, elapsed_time]
     save_run_configs(run_folder, header, data)
     
-    return run_folder
+    print_stats(run_folder)
 
 def run_pso(generations, population_size, range_V_S, seeds, b_series):
     solver  = Solver.PSO
@@ -269,9 +279,9 @@ def run_pso(generations, population_size, range_V_S, seeds, b_series):
     data = [range_V_S, solver.name, population_size, generations, c1, c2, alpha, seeds, elapsed_time]
     save_run_configs(run_folder, header, data)
     
-    return run_folder
+    print_stats(run_folder)
 
-
+   
 if __name__ == "__main__":
     
     file = open('./data/b_series.json')
@@ -283,31 +293,11 @@ if __name__ == "__main__":
     generations = 30
     seeds = 10
     
-    # run_folder = run_cma(generations, population_size, range_V_S, seeds, b_series)
+    run_cma(generations, population_size, range_V_S, seeds, b_series)
     
-    # run_folder = run_openai_es(generations, population_size, range_V_S, seeds, b_series)
+    run_openai_es(generations, population_size, range_V_S, seeds, b_series)
 
-    # run_folder = run_hgso(generations, population_size, range_V_S, seeds, b_series)
+    run_hgso(generations, population_size, range_V_S, seeds, b_series)
 
-    run_folder = run_pso(generations, population_size, range_V_S, seeds, b_series)
+    # run_pso(generations, population_size, range_V_S, seeds, b_series)
     
-    print()
-
-    print("vS | P_B | Z | D | AEdAO | PdD")
-    
-    for v_S in range_V_S:
-        v_S_folder = str(v_S).replace('.', '_')
-        has_valids, min_pb_row = get_best(run_folder + '/' + v_S_folder + '/all_results.csv')
-        if has_valids: print(str(v_S), "{:.3f}".format(min_pb_row.iloc[5]), min_pb_row.iloc[1], "{:.3f}".format(min_pb_row.iloc[2]), "{:.3f}".format(min_pb_row.iloc[3]), "{:.3f}".format(min_pb_row.iloc[4]))
-        
-    # has_valids, min_pb_row = get_best(run_folder + '/7_0/all_results.csv')
-    # if has_valids: print("7.0", min_pb_row.iloc[5], min_pb_row.iloc[1], min_pb_row.iloc[2], min_pb_row.iloc[3], min_pb_row.iloc[4])
-    
-    # has_valids, min_pb_row = get_best(run_folder + '/7_5/all_results.csv')
-    # if has_valids: print("7.5", min_pb_row.iloc[5], min_pb_row.iloc[1], min_pb_row.iloc[2], min_pb_row.iloc[3], min_pb_row.iloc[4])
-    
-    # has_valids, min_pb_row = get_best(run_folder + '/8_0/all_results.csv')
-    # if has_valids: print("8.0", min_pb_row.iloc[5], min_pb_row.iloc[1], min_pb_row.iloc[2], min_pb_row.iloc[3], min_pb_row.iloc[4])
-    
-    # has_valids, min_pb_row = get_best(run_folder + '/8_5/all_results.csv')
-    # if has_valids: print("8.5", min_pb_row.iloc[5], min_pb_row.iloc[1], min_pb_row.iloc[2], min_pb_row.iloc[3], min_pb_row.iloc[4])

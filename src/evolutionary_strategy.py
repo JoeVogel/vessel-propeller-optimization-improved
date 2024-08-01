@@ -4,8 +4,10 @@ import numpy as np
 import os
 
 import cma
-from openai_es import OpenES
-from mealpy import FloatVar, HGSO, PSO
+from openai import OpenAIES
+from hgso import HGSO
+# from mealpy import FloatVar, HGSO, PSO
+from mealpy import FloatVar, PSO
 
 from evaluate_propeller import evaluate
 from multiprocessing.pool import ThreadPool 
@@ -125,10 +127,9 @@ class EvolutionaryStrategy:
             elif self.solver.value == 2:
                 self.__run_openai_es(num_params=3, x0=x0, lower_bounds=lower_bounds, upper_bounds=upper_bounds)
             elif self.solver.value == 3:
-                self.__run_hgso(lower_bounds=lower_bounds, upper_bounds=upper_bounds)
+                self.__run_hgso(lower_bounds=lower_bounds, upper_bounds=upper_bounds, seed=seed)
             elif self.solver.value == 4:
-                self.__run_pso(lower_bounds=lower_bounds, upper_bounds=upper_bounds)
-
+                self.__run_pso(lower_bounds=lower_bounds, upper_bounds=upper_bounds, seed=seed)
     
     def get_best_result(self):
         # get result with best fitness 
@@ -182,36 +183,38 @@ class EvolutionaryStrategy:
         print("Fitness", fit_value)
         print("")
         
-        csv_path = self.run_folder + '/all_results.csv'
+        if (self.generation_counter > 0):
         
-        header = ["V_S", "Z", "D", "AEdAO", "PdD", "P_B", "Strength", "Strength_Min", "Cavitation", "Cavitation_Max", "Tip_Velocity", "Tip_Velocity_Max", "Generation", "Run", "Valid"]
-        data = [V_S, Z, D, AEdAO, PdD, P_B, strength,strengthMin, cavitation,cavitationMax, velocity,velocityMax, self.generation_counter, self.run_number, (True if penalty == 0 else False)]
-        
-        file_exists = os.path.exists(csv_path)
-        
-        with open(csv_path, 'a', newline='') as csvfile:
-            writer = csv.writer(csvfile)
+            csv_path = self.run_folder + '/all_results.csv'
             
-            if not file_exists:
-                writer.writerow(header)
+            header = ["V_S", "Z", "D", "AEdAO", "PdD", "P_B", "Strength", "Strength_Min", "Cavitation", "Cavitation_Max", "Tip_Velocity", "Tip_Velocity_Max", "Generation", "Run", "Valid"]
+            data = [V_S, Z, D, AEdAO, PdD, P_B, strength,strengthMin, cavitation,cavitationMax, velocity,velocityMax, self.generation_counter, self.run_number, (True if penalty == 0 else False)]
             
-            writer.writerow(data)
-        
-        if penalty == 0:  
-            self.valid_solutions['V_S'].append(V_S)  
-            self.valid_solutions['Z'].append(Z)
-            self.valid_solutions['D'].append(D)
-            self.valid_solutions['AEdAO'].append(AEdAO)
-            self.valid_solutions['PdD'].append(PdD)
-            self.valid_solutions['P_B'].append(fit_value)
-            self.valid_solutions['Strength'].append(strength)
-            self.valid_solutions['Strength_Min'].append(strengthMin)
-            self.valid_solutions['Cavitation'].append(cavitation)
-            self.valid_solutions['Cavitation_Max'].append(cavitationMax)
-            self.valid_solutions['Tip_Velocity'].append(velocity)
-            self.valid_solutions['Tip_Velocity_Max'].append(velocityMax)
-            self.valid_solutions['Generation'].append(self.generation_counter)
-            self.valid_solutions['Run'].append(self.run_number)
+            file_exists = os.path.exists(csv_path)
+            
+            with open(csv_path, 'a', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+                
+                if not file_exists:
+                    writer.writerow(header)
+                
+                writer.writerow(data)
+            
+            if penalty == 0:  
+                self.valid_solutions['V_S'].append(V_S)  
+                self.valid_solutions['Z'].append(Z)
+                self.valid_solutions['D'].append(D)
+                self.valid_solutions['AEdAO'].append(AEdAO)
+                self.valid_solutions['PdD'].append(PdD)
+                self.valid_solutions['P_B'].append(fit_value)
+                self.valid_solutions['Strength'].append(strength)
+                self.valid_solutions['Strength_Min'].append(strengthMin)
+                self.valid_solutions['Cavitation'].append(cavitation)
+                self.valid_solutions['Cavitation_Max'].append(cavitationMax)
+                self.valid_solutions['Tip_Velocity'].append(velocity)
+                self.valid_solutions['Tip_Velocity_Max'].append(velocityMax)
+                self.valid_solutions['Generation'].append(self.generation_counter)
+                self.valid_solutions['Run'].append(self.run_number)
             
         # we want the minimal P_B
         # the solvers use the max value as best fitness, so
@@ -239,7 +242,7 @@ class EvolutionaryStrategy:
                 break
             
             population = self.es.ask()
-            self.es.tell(population, [self.__fitness_function(individual, self.generation_counter) for individual in population])
+            self.es.tell(population, [self.__fitness_function(individual) for individual in population])
             self.es.disp()
             
             self.generation_counter += 1
@@ -248,7 +251,7 @@ class EvolutionaryStrategy:
     
     def __run_openai_es(self, num_params=None, x0=None, lower_bounds=None, upper_bounds=None):
         
-        self.es = OpenES(num_params,
+        self.es = OpenAIES(num_params,
                          x0=x0,
                          popsize=self.population_size,
                          sigma_init=self.sigma_init,
@@ -262,7 +265,7 @@ class EvolutionaryStrategy:
                          upper_bounds=upper_bounds )
         
         #TODO: implementar avaliação de convergencia
-        for i in range(self.max_generations):
+        while (self.max_generations >= self.generation_counter):
             
             population = self.es.ask()
             
@@ -277,22 +280,26 @@ class EvolutionaryStrategy:
             
             self.generation_counter += 1
     
-    def __run_hgso(self, lower_bounds=None, upper_bounds=None):
-
-        problem_dict = {
-            "bounds": FloatVar(lb=lower_bounds, ub=upper_bounds, name="delta"),
-            "minmax": "min",
-            "obj_func": self.__fitness_function
-        }
-
-        model = HGSO.OriginalHGSO(epoch=self.max_generations, pop_size=self.population_size)
-
-        g_best = model.solve(problem_dict)
+    def __run_hgso(self, lower_bounds=None, upper_bounds=None, seed=None):
         
-        print(f"Solution: {g_best.solution}, Fitness: {g_best.target.fitness}")
-        print(f"Solution: {model.g_best.solution}, Fitness: {model.g_best.target.fitness}")
+        self.generation_counter = 0 # Para desconsiderar a população inicial
+        
+        obj_func = self.__fitness_function
+        
+        hgso = HGSO(obj_func, 
+                    lower_bounds, 
+                    upper_bounds, 
+                    verbose=True, 
+                    epoch=self.max_generations, 
+                    pop_size=self.population_size, 
+                    random_seed=seed)
+
+        while self.max_generations >= self.generation_counter:
+            pos, fit, train_loss = hgso.solve(self.generation_counter)
+            self.generation_counter += 1
+
     
-    def __run_pso(self, lower_bounds=None, upper_bounds=None):
+    def __run_pso(self, lower_bounds=None, upper_bounds=None, seed=None):
 
         problem_dict = {
             "bounds": FloatVar(lb=lower_bounds, ub=upper_bounds, name="delta"),
@@ -301,7 +308,13 @@ class EvolutionaryStrategy:
         }
 
         model = PSO.AIW_PSO(epoch=self.max_generations, pop_size=self.population_size, c1=self.c1, c2=self.c2, alpha=self.alpha)
-        g_best = model.solve(problem_dict)
+        
+        g_best = model.solve(problem_dict, 
+                             mode='single', 
+                             n_workers=None, 
+                             termination=None, 
+                             starting_solutions=None,
+                             seed=seed)
         
         print(f"Solution: {g_best.solution}, Fitness: {g_best.target.fitness}")
         print(f"Solution: {model.g_best.solution}, Fitness: {model.g_best.target.fitness}")

@@ -1,2 +1,0 @@
-range_V_S,Solver,Population_Size,Max_Generations,C1,C2,Alpha,Seeds,Elapsed_Time
-"[7.0, 7.5, 8.0, 8.5]",PSO,10,30,2.05,2.05,0.4,10,8.213457163174947
