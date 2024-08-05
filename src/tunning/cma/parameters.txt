@@ -1,0 +1,4 @@
+### Parameter file
+# name          switch                  type    values
+sigma           "--sigma "              r       (0.1, 3.0)
+num_population  "--num_population "     i       (10, 100)

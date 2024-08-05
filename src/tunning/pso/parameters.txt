@@ -1,0 +1,6 @@
+### Parameter file
+# name          switch              type    values
+w               "--w "              r       (0.1, 0.9)
+c1              "--c1 "             r       (0.5, 2.5)
+c2              "--c2 "             r       (0.5, 2.5)
+num_particles   "--num_particles "  i       (10, 100)

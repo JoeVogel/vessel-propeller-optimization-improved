@@ -22,7 +22,7 @@ class Solver(Enum):
 
 class EvolutionaryStrategy:
     
-    def __init__(self, solver:Solver, population_size=255, max_generations=None, qtde_seeds=1, service_speed=7.0, b_series_json=None, number_of_blades=None, run_folder=None):
+    def __init__(self, solver:Solver, population_size=255, max_generations=None, qtde_seeds=1, service_speed=7.0, b_series_json=None, number_of_blades=None, run_folder=None, verbose=False):
         
         # CMA_ES and OpenAI_ES
         self.sigma_init             = 0.1
@@ -33,6 +33,12 @@ class EvolutionaryStrategy:
         self.weight_decay           = 0.01
         self.antithetic             = False   
         self.forget_best            = True
+        # HGSO
+        self.alpha          = 0.01
+        self.beta           = 0.01
+        self.K              = 0.5
+        self.epxilon        = 0.05
+        self.num_clusters   = 1
         # PSO
         self.c1     = 1.0
         self.c2     = 2.0 
@@ -44,6 +50,9 @@ class EvolutionaryStrategy:
         self.population_size    = population_size
         self.max_generations    = max_generations
         self.qtde_seeds         = qtde_seeds
+        self.b_series           = b_series_json
+        self.run_folder         = run_folder
+        self.verbose            = verbose
         self.all_results        = pd.DataFrame(columns=['V_S',
                                                         'Z', 
                                                         'D', 
@@ -65,21 +74,11 @@ class EvolutionaryStrategy:
         
         self.service_speed      = service_speed
         
-        if b_series_json == None:
-            raise Exception('Must provide b_series_json parameter')
-        
-        self.b_series           = b_series_json
-        
         if number_of_blades == None:
             raise Exception('Must provide number_of_blades parameter')
         
         self.number_of_blades = number_of_blades
         
-        if run_folder == None:
-            raise Exception('Must provide run folder parameter')
-        
-        self.run_folder = run_folder
-    
     def get_valids(self):
         return self.all_results[self.all_results['Valid'] == True]
 
@@ -95,8 +94,12 @@ class EvolutionaryStrategy:
         self.antithetic             = antithetic   
         self.forget_best            = forget_best
     
-    def configure_hgso(self):
-        pass
+    def configure_hgso(self, alpha, beta, K, epxilon, num_clusters):
+        self.alpha          = alpha
+        self.beta           = beta
+        self.K              = K
+        self.epxilon        = epxilon
+        self.num_clusters   = num_clusters
 
     def configure_pso(self, c1, c2, weight):
         self.c1     = c1
@@ -154,21 +157,13 @@ class EvolutionaryStrategy:
         # print("fitness:",fitness)
         return [Z, D, AEdAO, PdD, fitness]
        
-    def __fitness_function(self, x):
+    def fitness_function(self, x):
         
         V_S     = self.service_speed
         D       = x[0]
         AEdAO   = x[1]
         PdD     = x[2]
         Z       = self.number_of_blades
-        
-        print("Seed      ", self.run_number)
-        print("Generation", self.generation_counter)
-        print("V_S       ", V_S)
-        print("Z         ", Z)
-        print("D         ", x[0])
-        print("AEdAO     ", x[1])
-        print("PdD       ", x[2])
         
         P_B, strength,strengthMin, cavitation,cavitationMax, velocity,velocityMax = evaluate(V_S,D,Z,AEdAO,PdD)
 
@@ -177,14 +172,22 @@ class EvolutionaryStrategy:
         strenght_penalty = max(((strengthMin - strength)/strengthMin), 0)
 
         penalty = cavitation_penalty + tip_velocity_penalty + strenght_penalty
-        print("Penalty", ("Yes" if penalty != 0 else "No"))
-        
+                
         # Fitness is Power Brake multiplied by 1 + the percentage of each constraint
         fit_value = P_B * (1 + penalty)
-        
-        print("Fitness", fit_value)
-        print("")
-        
+
+        if self.verbose:
+            print("Seed      ", self.run_number)
+            print("Generation", self.generation_counter)
+            print("V_S       ", V_S)
+            print("Z         ", Z)
+            print("D         ", x[0])
+            print("AEdAO     ", x[1])
+            print("PdD       ", x[2])
+            print("Penalty", ("Yes" if penalty != 0 else "No"))
+            print("Fitness", fit_value)
+            print("")
+
         if (self.generation_counter > 0): # Se for 0 significa que é a geração da inicialização
 
             new_row = {
@@ -214,10 +217,6 @@ class EvolutionaryStrategy:
                 self.all_results.loc[real_index] = new_row
             else:
                 raise Exception('Wrong number of parameters')
-            
-        # we want the minimal P_B
-        # the solvers use the max value as best fitness, so
-        # fit_value *= -1
         
         return fit_value   
  
@@ -241,7 +240,7 @@ class EvolutionaryStrategy:
                 break
             
             population = self.es.ask()
-            self.es.tell(population, [self.__fitness_function(individual) for individual in population])
+            self.es.tell(population, [self.fitness_function(individual) for individual in population])
             self.es.disp()
             
             self.generation_counter += 1
@@ -271,7 +270,7 @@ class EvolutionaryStrategy:
             fitness_list = np.zeros(self.es.popsize)
             
             for j in range(len(population)):
-                fitness_list[j] = self.__fitness_function(population[j])
+                fitness_list[j] = self.fitness_function(population[j])
                 
             self.es.tell(fitness_list)
             
@@ -283,14 +282,18 @@ class EvolutionaryStrategy:
         
         self.generation_counter = 0 # Para desconsiderar a população inicial gerada e avaliada na inicialização
         
-        obj_func = self.__fitness_function
+        obj_func = self.fitness_function
         
         hgso = HGSO(obj_func, 
                     lower_bounds, 
                     upper_bounds, 
+                    alpha=self.alpha,
+                    beta=self.beta,
+                    epxilon=self.epxilon,
+                    K=self.K,
                     verbose=True, 
-                    epoch=self.max_generations, 
-                    pop_size=self.population_size, 
+                    pop_size=self.population_size,
+                    n_clusters=self.num_clusters, 
                     random_seed=seed)
 
         self.generation_counter = 1
@@ -303,7 +306,7 @@ class EvolutionaryStrategy:
 
         self.generation_counter = 0 # Para desconsiderar a população inicial gerada e avaliada na inicialização
         
-        obj_func = self.__fitness_function
+        obj_func = self.fitness_function
 
         pso = PSO(obj_func=obj_func, 
                   dimension=3, 

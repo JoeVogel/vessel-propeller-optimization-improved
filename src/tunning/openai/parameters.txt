@@ -1,0 +1,8 @@
+### Parameter file
+# name              switch                      type    values
+sigma_init          "--sigma_init "             r       (0.01, 1.0)
+sigma_decay         "--sigma_decay "            r       (0.01, 1.0)
+learning_rate       "--learning_rate "          r       (0.01, 1.0)
+learning_rate_decay "--learning_rate_decay "    r       (0.01, 1.0)
+weight_decay        "--weight_decay "           r       (0.01, 1.0)
+num_population      "--num_population "          i       (10, 100)

@@ -1,0 +1,14 @@
+# Empty lines and comments are ignored.
+
+# data1
+# data2
+# data3 ...
+
+100
+300
+500
+700
+900
+1100
+1300
+1500

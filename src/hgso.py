@@ -67,9 +67,8 @@ class HGSO():
     ID_FIT = 1 # Fitness
 
     def __init__(self, obj_func=None, lb=None, ub=None, 
-                 verbose=True, epoch=750, pop_size=100, 
+                 alpha = 0.01, beta=0.01, epxilon = 0.05, K = 0.5, verbose=True, pop_size=100, 
                  n_clusters=1, random_seed=None, **kwargs):
-        self.epoch = epoch
         self.pop_size = pop_size
         self.n_clusters = n_clusters
         self.n_elements = int(self.pop_size / self.n_clusters)
@@ -77,10 +76,10 @@ class HGSO():
         self.ub = ub
         self.verbose = verbose
         self.T0 = 298.15 # Representa a temperatura inicial em Kelvin. Usada no cálculo de 𝐻𝑗 para simular um processo de resfriamento. Uma temperatura inicial alta pode ajudar a explorar mais o espaço de busca inicialmente, enquanto uma temperatura baixa pode ajudar na exploração mais local nos estágios finais do algoritmo.
-        self.K = 0.5  # Constante de Boltzmann. Utilizada no cálculo de 𝑆𝑖𝑗, que mede a energia de interação entre as partículas. Afeta a magnitude das variações de posição das partículas.
-        self.alpha = 0.01
-        self.beta = 0.01
-        self.epxilon = 0.05
+        self.K = K  # Constante de Boltzmann. Utilizada no cálculo de 𝑆𝑖𝑗, que mede a energia de interação entre as partículas. Afeta a magnitude das variações de posição das partículas.
+        self.alpha = alpha
+        self.beta = beta
+        self.epxilon = epxilon
         self.obj_func = obj_func
         self.l1 = 0.05 # Limite para o fator de energia de interação inicial.
         self.l2 = 1 # Limite para o fator de energia de potencial inicial.
@@ -136,7 +135,7 @@ class HGSO():
         for i in range(self.n_clusters):
             for j in range(self.n_elements):
                 F = -1.0 if uniform() < 0.5 else 1.0
-                self.H_j = self.H_j * np.exp(-self.C_j * (1.0 / np.exp(-epoch / self.epoch) - 1.0 / self.T0))
+                self.H_j = self.H_j * np.exp(-self.C_j * (1.0 / np.exp(-epoch / epoch) - 1.0 / self.T0))
                 S_ij = self.K * self.H_j * self.P_ij
                 gamma = self.beta * np.exp(- ((self.p_best[i][self.ID_FIT] + self.epxilon) / (self.group[i][j][self.ID_FIT] + self.epxilon)))
                 X_ij = self.group[i][j][self.ID_POS] + F * uniform() * gamma * (self.p_best[i][self.ID_POS] - self.group[i][j][self.ID_POS]) + F * uniform() * self.alpha * (S_ij * self.g_best[self.ID_POS] - self.group[i][j][self.ID_POS])
@@ -148,7 +147,7 @@ class HGSO():
                 self.group[i][j] = [X_ij, fit, i]
                 self.pop[i*self.n_elements + j] = [X_ij, fit, i]
 
-        self.H_j = self.H_j * np.exp(-self.C_j * (1.0 / np.exp(-epoch / self.epoch) - 1.0 / self.T0))
+        self.H_j = self.H_j * np.exp(-self.C_j * (1.0 / np.exp(-epoch / epoch) - 1.0 / self.T0))
         S_ij = self.K * self.H_j * self.P_ij
         N_w = int(self.pop_size * (uniform(0, 0.1) + 0.1))
         sorted_id_pos = np.argsort([x[self.ID_FIT] for x in self.pop])

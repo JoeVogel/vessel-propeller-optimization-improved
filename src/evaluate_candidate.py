@@ -1,6 +1,6 @@
 from evaluate_propeller import evaluate
 
-V_S = 8.5
+V_S = 7
 Z = 6
 D = 0.8
 AEdAO = 0.892

@@ -61,7 +61,11 @@ def print_stats(run_folder):
 
 def run_cma(generations, population_size, range_V_S, seeds, b_series): 
     solver      = Solver.CMA_ES
-    sigma_init  = 0.1
+    
+    #   sigma   num_population
+    #   0.1153  98
+
+    sigma_init  = 0.1153
     
     datetime_now = datetime.now()
     run_folder = 'results/' + str(solver.name) + '-' + datetime_now.strftime("%m_%d-%H_%M")
@@ -94,7 +98,8 @@ def run_cma(generations, population_size, range_V_S, seeds, b_series):
                                     qtde_seeds=seeds, 
                                     b_series_json=b_series, 
                                     number_of_blades=Z,
-                                    run_folder=vS_folder)
+                                    run_folder=vS_folder,
+                                    verbose=True)
             
             es.configure_cma(sigma_init)
             
@@ -123,7 +128,15 @@ def run_cma(generations, population_size, range_V_S, seeds, b_series):
 def run_openai_es(generations, population_size, range_V_S, seeds, b_series):
     
     solver      = Solver.OPENAI_ES
-    sigma_init  = 0.1
+
+    # sigma_init sigma_decay learning_rate learning_rate_decay weight_decay num_population
+    # 0.9645      0.8660        0.0242              0.6535       0.6936             73    
+    
+    sigma_init = 0.9645
+    sigma_decay = 0.8660
+    learning_rate = 0.0242
+    learning_rate_decay = 0.6535
+    weight_decay = 0.6936
     
     datetime_now = datetime.now()
     run_folder = 'results/' + str(solver.name) + '-' + datetime_now.strftime("%m_%d-%H_%M")
@@ -156,9 +169,16 @@ def run_openai_es(generations, population_size, range_V_S, seeds, b_series):
                                     qtde_seeds=seeds, 
                                     b_series_json=b_series, 
                                     number_of_blades=Z,
-                                    run_folder=vS_folder)
+                                    run_folder=vS_folder,
+                                    verbose=True)
             
-            es.configure_openai_es(sigma_init=0.1, sigma_decay=0.99, learning_rate=0.01, learning_rate_decay=0.99, weight_decay=0.01, antithetic=False, forget_best=False)
+            es.configure_openai_es(sigma_init=sigma_init, 
+                                   sigma_decay=sigma_decay, 
+                                   learning_rate=learning_rate, 
+                                   learning_rate_decay=learning_rate_decay, 
+                                   weight_decay=weight_decay, 
+                                   antithetic=False, 
+                                   forget_best=False)
             
             es.run_solver()
             
@@ -186,6 +206,15 @@ def run_hgso(generations, population_size, range_V_S, seeds, b_series):
     
     solver  = Solver.HGSO
 
+    # alpha     beta    epsilon K       num_population  num_clusters
+    # 0.8616    0.9845  0.9630  1.4175  59              3
+
+    alpha = 0.8616
+    beta = 0.9845
+    epsilon = 0.9630
+    K = 1.4175
+    num_clusters = 3
+
     datetime_now = datetime.now()
     run_folder = 'results/' + str(solver.name) + '-' + datetime_now.strftime("%m_%d-%H_%M")
     
@@ -217,9 +246,15 @@ def run_hgso(generations, population_size, range_V_S, seeds, b_series):
                                     qtde_seeds=seeds, 
                                     b_series_json=b_series, 
                                     number_of_blades=Z,
-                                    run_folder=vS_folder)
+                                    run_folder=vS_folder,
+                                    verbose=True)
             
-            es.configure_hgso()
+
+            es.configure_hgso(alpha, 
+                              beta, 
+                              K, 
+                              epsilon, 
+                              num_clusters)
             
             es.run_solver()
             
@@ -244,11 +279,14 @@ def run_hgso(generations, population_size, range_V_S, seeds, b_series):
     print_stats(run_folder)
 
 def run_pso(generations, population_size, range_V_S, seeds, b_series):
-    
+                  
     solver  = Solver.PSO
-    c1      = 2.05
-    c2      = 2.05
-    weight  = 0.4
+
+    #   c1      c2      weight      population
+    #   0.9986  2.3070  0.1229      58  
+    c1      = 0.9986
+    c2      = 2.3070
+    weight  = 0.1229
 
     datetime_now = datetime.now()
     run_folder = 'results/' + str(solver.name) + '-' + datetime_now.strftime("%m_%d-%H_%M")
@@ -279,7 +317,8 @@ def run_pso(generations, population_size, range_V_S, seeds, b_series):
                                     qtde_seeds=seeds, 
                                     b_series_json=b_series, 
                                     number_of_blades=Z,
-                                    run_folder=vS_folder)
+                                    run_folder=vS_folder,
+                                    verbose=True)
             
             es.configure_pso(c1=c1, c2=c2, weight=weight)
             
@@ -311,17 +350,21 @@ if __name__ == "__main__":
     file = open('./data/b_series.json')
     b_series = json.load(file)
      
-    range_V_S = [7.0, 7.5, 8.0, 8.5]
-    # range_V_S = [7.0]
+    # range_V_S = [7.0, 7.5, 8.0, 8.5]
+    range_V_S = [7.0, 8.5]
     population_size = 10
     generations = 30
-    seeds = 10
+    seeds = 1
     
-    run_cma(generations, population_size, range_V_S, seeds, b_series)
+    # population_size = 98
+    # run_cma(generations, population_size, range_V_S, seeds, b_series)
     
-    run_openai_es(generations, population_size, range_V_S, seeds, b_series)
+    # population_size = 73
+    # run_openai_es(generations, population_size, range_V_S, seeds, b_series)
 
-    run_hgso(generations, population_size, range_V_S, seeds, b_series)
+    # population_size = 59
+    # run_hgso(generations, population_size, range_V_S, seeds, b_series)
 
+    population_size = 58
     run_pso(generations, population_size, range_V_S, seeds, b_series)
     
