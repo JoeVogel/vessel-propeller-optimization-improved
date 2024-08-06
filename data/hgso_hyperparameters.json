@@ -1,0 +1,8 @@
+{
+    "alpha": 0.8616,
+    "beta": 0.9845,
+    "epsilon": 0.9630,
+    "K": 1.4175,
+    "num_population": 59,
+    "num_clusters": 3
+}

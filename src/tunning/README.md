@@ -4,14 +4,30 @@ Necessário instalar o R e o pacote irace
 
 ## Comandos R
 
-setwd("Desktop/Mestrado/hydrone-optimization/src/tunning/pso")
+linux:
 
-library("irace")
+    setwd("Desktop/Mestrado/hydrone-optimization/src/tunning/pso")
 
-parameters <- readParameters(file = "parameters.txt")
+    library("irace")
 
-scenario <- readScenario(filename = "scenario.txt", scenario = defaultScenario())
+    parameters <- readParameters(file = "parameters.txt")
 
-checkIraceScenario(scenario = scenario)
+    scenario <- readScenario(filename = "linux_scenario.txt", scenario = defaultScenario())
 
-irace.main(scenario = scenario)
+    checkIraceScenario(scenario = scenario)
+
+    irace.main(scenario = scenario)
+
+windows:
+
+    setwd("C:\\Users\\Joe Vogel\\Desktop\\MESTRADO\\git\\hydrone-optimization\\src\\tunning\\cma")
+
+    library("irace")
+
+    parameters <- readParameters(file = "parameters.txt")
+
+    scenario <- readScenario(filename = "windows_scenario.txt", scenario = defaultScenario())
+
+    checkIraceScenario(scenario = scenario)
+
+    irace.main(scenario = scenario)

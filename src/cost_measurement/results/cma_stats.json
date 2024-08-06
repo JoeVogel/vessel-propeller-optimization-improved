@@ -1,0 +1,9 @@
+{
+    "Population size": 98,
+    "Iterations": 30,
+    "Evaluated candidates": 2940,
+    "Mean iteration time (s)": 0.881,
+    "Mean time (s) by candidate (mean iteration time / population size)": 0.008989795918367348,
+    "Mean iteration cpu usage (%)": 99.08,
+    "Mean iteration memory usage (bytes)": 214630
+}

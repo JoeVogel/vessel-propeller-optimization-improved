@@ -1,0 +1,9 @@
+    
+{
+    "sigma_init": 0.9645,
+    "sigma_decay": 0.8660,
+    "learning_rate": 0.0242,
+    "learning_rate_decay": 0.6535,
+    "weight_decay": 0.6936,
+    "num_population": 73
+}

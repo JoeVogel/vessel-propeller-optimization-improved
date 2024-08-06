@@ -5,7 +5,8 @@ import os
 import csv
 
 from datetime import datetime
-from evolutionary_strategy import Solver, EvolutionaryStrategy
+from optimization.evolutionary_strategy import Solver, EvolutionaryStrategy
+from data_loader import load_hyperparameters
 
 columns = ['V_S',
             'Z', 
@@ -62,10 +63,12 @@ def print_stats(run_folder):
 def run_cma(generations, population_size, range_V_S, seeds, b_series): 
     solver      = Solver.CMA_ES
     
-    #   sigma   num_population
-    #   0.1153  98
-
-    sigma_init  = 0.1153
+    configs = load_hyperparameters(solver)
+    
+    sigma_init = configs['sigma']
+    
+    if population_size is None:
+        population_size = configs['num_population']
     
     datetime_now = datetime.now()
     run_folder = 'results/' + str(solver.name) + '-' + datetime_now.strftime("%m_%d-%H_%M")
@@ -128,15 +131,17 @@ def run_cma(generations, population_size, range_V_S, seeds, b_series):
 def run_openai_es(generations, population_size, range_V_S, seeds, b_series):
     
     solver      = Solver.OPENAI_ES
-
-    # sigma_init sigma_decay learning_rate learning_rate_decay weight_decay num_population
-    # 0.9645      0.8660        0.0242              0.6535       0.6936             73    
     
-    sigma_init = 0.9645
-    sigma_decay = 0.8660
-    learning_rate = 0.0242
-    learning_rate_decay = 0.6535
-    weight_decay = 0.6936
+    configs = load_hyperparameters(solver)
+
+    sigma_init = configs['sigma_init']
+    sigma_decay = configs['sigma_decay']
+    learning_rate = configs['learning_rate']
+    learning_rate_decay = configs['learning_rate_decay']
+    weight_decay = configs['weight_decay']
+    
+    if population_size is None:
+        population_size = configs['num_population']
     
     datetime_now = datetime.now()
     run_folder = 'results/' + str(solver.name) + '-' + datetime_now.strftime("%m_%d-%H_%M")
@@ -205,15 +210,17 @@ def run_openai_es(generations, population_size, range_V_S, seeds, b_series):
 def run_hgso(generations, population_size, range_V_S, seeds, b_series):
     
     solver  = Solver.HGSO
+    
+    configs = load_hyperparameters(solver)
 
-    # alpha     beta    epsilon K       num_population  num_clusters
-    # 0.8616    0.9845  0.9630  1.4175  59              3
-
-    alpha = 0.8616
-    beta = 0.9845
-    epsilon = 0.9630
-    K = 1.4175
-    num_clusters = 3
+    alpha = configs['alpha']
+    beta = configs['beta']
+    epsilon = configs['epsilon']
+    K = configs['K']
+    num_clusters = configs['num_clusters']
+    
+    if population_size is None:
+        population_size = configs['num_population']
 
     datetime_now = datetime.now()
     run_folder = 'results/' + str(solver.name) + '-' + datetime_now.strftime("%m_%d-%H_%M")
@@ -281,12 +288,15 @@ def run_hgso(generations, population_size, range_V_S, seeds, b_series):
 def run_pso(generations, population_size, range_V_S, seeds, b_series):
                   
     solver  = Solver.PSO
-
-    #   c1      c2      weight      population
-    #   0.9986  2.3070  0.1229      58  
-    c1      = 0.9986
-    c2      = 2.3070
-    weight  = 0.1229
+    
+    configs = load_hyperparameters(solver)
+ 
+    c1      = configs['c1']
+    c2      = configs['c2']
+    weight  = configs['weight']
+    
+    if population_size is None:
+        population_size = configs['population']
 
     datetime_now = datetime.now()
     run_folder = 'results/' + str(solver.name) + '-' + datetime_now.strftime("%m_%d-%H_%M")
@@ -350,21 +360,17 @@ if __name__ == "__main__":
     file = open('./data/b_series.json')
     b_series = json.load(file)
      
-    # range_V_S = [7.0, 7.5, 8.0, 8.5]
-    range_V_S = [7.0, 8.5]
-    population_size = 10
+    range_V_S = [7.0, 7.5, 8.0, 8.5]
+    # range_V_S = [7.0]
+    population_size = None #Se None, usa o resultado do tunning de hiper parametros
     generations = 30
-    seeds = 1
+    seeds = 10
     
-    # population_size = 98
-    # run_cma(generations, population_size, range_V_S, seeds, b_series)
+    run_cma(generations, population_size, range_V_S, seeds, b_series)
     
-    # population_size = 73
-    # run_openai_es(generations, population_size, range_V_S, seeds, b_series)
+    run_openai_es(generations, population_size, range_V_S, seeds, b_series)
 
-    # population_size = 59
-    # run_hgso(generations, population_size, range_V_S, seeds, b_series)
+    run_hgso(generations, population_size, range_V_S, seeds, b_series)
 
-    population_size = 58
     run_pso(generations, population_size, range_V_S, seeds, b_series)
     

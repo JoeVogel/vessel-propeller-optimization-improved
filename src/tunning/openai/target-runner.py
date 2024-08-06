@@ -25,7 +25,7 @@ import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
-from openai_single_run import run
+from single_run.openai_single_run import run
 
 ## This a dummy example that shows how to parse the parameters defined in
 ## parameters.txt and does not need to call any other software.
