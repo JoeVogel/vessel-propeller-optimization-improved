@@ -7,3 +7,4 @@ seaborn==0.13.2
 # mealpy==3.0.1
 requests==2.32.3
 scikit-learn==1.6.0
+# xgboost==2.1.3
